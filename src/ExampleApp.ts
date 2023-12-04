@@ -13,6 +13,8 @@ export class ExampleApp extends gfx.GfxApp
     private dartboardMesh: gfx.Mesh3;
     private bunnyMesh: gfx.Mesh3;
 
+    private pickableObjects: gfx.Mesh3[];
+
     constructor()
     {
         super();
@@ -20,6 +22,7 @@ export class ExampleApp extends gfx.GfxApp
         this.groundMesh = new gfx.Mesh3();
         this.dartboardMesh = new gfx.Mesh3();
         this.bunnyMesh = new gfx.Mesh3();
+        this.pickableObjects = [];
     }
 
     createScene(): void 
@@ -61,6 +64,10 @@ export class ExampleApp extends gfx.GfxApp
         this.bunnyMesh = gfx.MeshLoader.loadOBJ('./assets/bunny.obj');
         this.bunnyMesh.position.set(0.33, 1.5, 0.5);
         this.scene.add(this.bunnyMesh);
+
+        this.pickableObjects.push(this.bunnyMesh);
+        this.pickableObjects.push(this.dartboardMesh);
+        this.pickableObjects.push(this.groundMesh);
     }
 
     update(deltaTime: number): void 
@@ -73,7 +80,34 @@ export class ExampleApp extends gfx.GfxApp
         if (event.button == 0) {
             const normalizedDeviceCoords = this.getNormalizedDeviceCoordinates(event.x, event.y);
             
-            
+            const pickRay = new gfx.Ray3();
+            pickRay.setPickRay(normalizedDeviceCoords, this.camera);
+
+            let closestHitPoint: gfx.Vector3 | null = null;
+            for (let i=0; i<this.pickableObjects.length; i++) {
+                const hitPoint = pickRay.intersectsMesh3(this.pickableObjects[i]);
+                if (hitPoint) {
+                    if (closestHitPoint) {
+                        const d1 = gfx.Vector3.distanceBetween(hitPoint, pickRay.origin);
+                        const d2 = gfx.Vector3.distanceBetween(closestHitPoint, pickRay.origin);
+                        if (d1 < d2) {
+                            closestHitPoint = hitPoint;
+                        }
+                    } else {
+                        closestHitPoint = hitPoint;
+                    }
+                }
+            }
+
+            if (closestHitPoint) {
+                const dartGeometry = gfx.Geometry3Factory.createCone(0.03, 0.3);
+                const M = new gfx.Matrix4();
+                M.multiply(gfx.Matrix4.makeTranslation(closestHitPoint));
+                M.multiply(gfx.Matrix4.makeAlign(new gfx.Vector3(0,1,0), pickRay.direction));
+                M.multiply(gfx.Matrix4.makeTranslation(new gfx.Vector3(0, -.15, 0)));
+                dartGeometry.setLocalToParentMatrix(M, false);
+                this.scene.add(dartGeometry);
+            }
         }
     }
 }
